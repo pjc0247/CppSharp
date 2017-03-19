@@ -9,12 +9,11 @@ CS_LoadScripts(scripts, 1);
 ```
 
 ```cpp
-CS_NetValue my_sum(CS_NetValue *args, int argc) {
-	return CS_NetValue::Integer(
-		_AS_INT(args, 0) +_AS_INT(args, 1));
+CS_NetValue my_sum(CS_NetValue a, CS_NetValue b) {
+  return CS_NetValue::Integer(a.Int() + b.Int());
 }
 
-CS_RegisterFunction("Sum", my_sum);
+CS_RegisterFunction("Sum", (CS_Function)my_sum);
 ```
 
 ```cpp
