@@ -27,6 +27,12 @@
     <ClInclude Include="NetValue.h">
       <Filter>소스 파일</Filter>
     </ClInclude>
+    <ClInclude Include="CppNetConverter.h">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
+    <ClInclude Include="NetType.cpp">
+      <Filter>소스 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CppSharpBridge.cpp">
@@ -39,6 +45,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="NetValue.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="CppNetConverter.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>

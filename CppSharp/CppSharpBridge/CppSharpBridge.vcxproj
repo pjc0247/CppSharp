@@ -132,13 +132,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="CppNetConverter.h" />
     <ClInclude Include="CppSharpBridge.h" />
+    <ClCompile Include="NetType.cpp">
+      <FileType>CppHeader</FileType>
+    </ClCompile>
     <ClInclude Include="NetValue.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Stdafx.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp" />
+    <ClCompile Include="CppNetConverter.cpp" />
     <ClCompile Include="CppSharpBridge.cpp" />
     <ClCompile Include="NetValue.cpp" />
     <ClCompile Include="Stdafx.cpp">

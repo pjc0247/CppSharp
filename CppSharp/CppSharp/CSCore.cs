@@ -17,19 +17,27 @@ namespace CppSharp
     {
         private static List<SyntaxTree> syntaxTrees = new List<SyntaxTree>();
 
-        public static ExeContext LoadScripts(Assembly reference, Tuple<string, string>[] scripts)
+        public static ExeContext LoadScripts(Assembly[] references, Tuple<string, string>[] scripts)
         {
-            Console.WriteLine(reference.GetType("CSFunctionBindings"));
-
-            var assembly = CreateAssembly(reference, scripts);
+            var assembly = CreateAssembly(references, scripts);
 
             return new ExeContext(assembly);
         }
 
+        public static void RegisterStruct(string name)
+        {
+            var options = new CSharpParseOptions(LanguageVersion.CSharp6, DocumentationMode.Diagnose, SourceCodeKind.Script);
+
+            var structSyntax = SyntaxFactory.StructDeclaration(name)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+                
+            //SyntaxFactory.VariableDeclaration()
+        }
         public static void RegisterFunction(string name, Type returnType, Type[] paramTypes)
         {
             var options = new CSharpParseOptions(LanguageVersion.CSharp6, DocumentationMode.Diagnose, SourceCodeKind.Script);
 
+            // 귀찮
             /*
              *            var classId = SyntaxFactory.IdentifierName("CSFunctionBindings");
             var methodId = SyntaxFactory.IdentifierName("Invoke");
@@ -89,7 +97,7 @@ namespace CppSharp
             syntaxTrees.Add(tree);
         }
 
-        private static byte[] CreateAssembly(Assembly reference, Tuple<string, string>[] scripts)
+        private static byte[] CreateAssembly(Assembly[] additionalReferences, Tuple<string, string>[] scripts)
         {
             var options = new CSharpParseOptions(LanguageVersion.CSharp6, DocumentationMode.Diagnose, SourceCodeKind.Script);
             var assemblyName = Path.GetRandomFileName();
@@ -99,7 +107,6 @@ namespace CppSharp
             references.AddRange(
                 new MetadataReference[]
                 {
-                MetadataReference.CreateFromFile(reference.Location),
                 MetadataReference.CreateFromFile(typeof(Microsoft.CSharp.RuntimeBinder.RuntimeBinderException).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
                 MetadataReference.CreateFromFile(typeof(Enumerable).Assembly.Location),
@@ -107,6 +114,9 @@ namespace CppSharp
                 MetadataReference.CreateFromFile(typeof(System.Xml.XmlReader).Assembly.Location)
                 //MetadataReference.CreateFromFile(Assembly.GetEntryAssembly().Location),
                 });
+
+            foreach (var reference in additionalReferences)
+                references.Add(MetadataReference.CreateFromFile(reference.Location));
 
             foreach (var script in scripts)
             {

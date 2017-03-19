@@ -1,6 +1,8 @@
 #include "stdafx.h"
 
 #include "NetValue.h"
+#include "CppNetConverter.h"
+
 #include "CppSharpBridge.h"
 
 #include <msclr/marshal_cppstd.h>
@@ -9,6 +11,8 @@
 #include <stdlib.h>
 
 #include <map>
+#include <vector>
+#include <string>
 #include <functional>
 
 using namespace System;
@@ -17,12 +21,10 @@ using namespace System::Collections::Generic;
 using namespace System::Runtime::InteropServices;
 using namespace CppSharp;
 
-static msclr::auto_gcroot<ExeContext^> exeContext;
+static msclr::gcroot<ExeContext^> exeContext;
 
-static std::map < std::string, std::function<CS_NetValue(CS_NetValue*, int)>> functions;
-
-static CS_NetValue ToCppValue(Object ^obj);
-static Object ^ToNetValue(const CS_NetValue &obj);
+static msclr::gcroot<List<Assembly^>^> references;
+static std::map<std::string, std::function<CS_NetValue(CS_NetValue*, int)>> functions;
 
 public ref class CSFunctionBindings {
 public:
@@ -53,6 +55,24 @@ public:
 private:
 };
 
+void CS_Init() {
+	references = gcnew List<Assembly^>();
+
+	references->Add(Assembly::GetCallingAssembly());
+}
+bool CS_LoadReference(const char *path) {
+	try {
+		auto assembly = Assembly::LoadFile(gcnew String(path));
+
+		references->Add(assembly);
+	}
+	catch (Exception ^e) {
+		Console::WriteLine(e);
+		return false;
+	}
+
+	return true;
+}
 void CS_LoadScripts(CS_Script *scripts, int len) {
 	auto input = gcnew List<Tuple<String^, String^>^>();
 
@@ -63,48 +83,8 @@ void CS_LoadScripts(CS_Script *scripts, int len) {
 	}
 
 	exeContext = CSCore::LoadScripts(
-		Assembly::GetCallingAssembly(),
+		references->ToArray(),
 		input->ToArray());
-}
-
-static Object ^ToNetValue(const CS_NetValue &obj) {
-	if (obj.type == CS_Void)
-		return nullptr;
-
-	if (obj.type == CS_Integer)
-		return obj._v.i;
-	if (obj.type == CS_Char)
-		return obj._v.c;
-	if (obj.type == CS_Float)
-		return obj._v.f;
-	if (obj.type == CS_Double)
-		return obj._v.d;
-	if (obj.type == CS_Boolean)
-		return obj._v.b;
-}
-static CS_NetValue ToCppValue(Object ^obj) {
-	auto objType = obj->GetType();
-
-	if (objType == Void::typeid)
-		return CS_NetValue::Void();
-	
-	if (objType == Int32::typeid)
-		return CS_NetValue::Integer((Int32)obj);
-	if (objType == Char::typeid)
-		return CS_NetValue::Char((Char)obj);
-	if (objType == Single::typeid)
-		return CS_NetValue::Float((Single)obj);
-	if (objType == Double::typeid)
-		return CS_NetValue::Double((Double)obj);
-	if (objType == Boolean::typeid)
-		return CS_NetValue::Boolean((Boolean)obj);
-
-	if (objType == String::typeid) {
-		auto cstr = (char*)(Marshal::StringToHGlobalAnsi((String^)obj).ToPointer());
-		auto v = CS_NetValue::String(cstr);
-		v.needToRelease = true;
-		return v;
-	}
 }
 
 void CS_RegisterFunction(
@@ -117,12 +97,12 @@ void CS_RegisterFunction(
 
 	auto paramTypesList = gcnew List<Type^>();
 	for (int i = 0; i < paramTypesLen; i++) {
-		paramTypesList->Add(paramTypes[i].data->type);
+		paramTypesList->Add(paramTypes[i].typeData->type);
 	}
 
 	CSCore::RegisterFunction(
 		gcnew String(name),
-		returnType.data->type,
+		returnType.typeData->type,
 		paramTypesList->ToArray());
 
 	functions[std::string(name)] = [func](CS_NetValue *args, int argc) {
@@ -139,7 +119,7 @@ void CS_RegisterFunction(
 	};
 }
 CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc) {
-	auto proxy = exeContext.get()->GetProxy();
+	auto proxy = exeContext->GetProxy();
 	auto param = gcnew List<Object^>();
 
 	for (int i = 0; i < argc; i++) {
