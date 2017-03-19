@@ -23,3 +23,11 @@ args[1] = CS_NetValue::Integer(5);
 
 CS_Invoke("SetUpUsBomb", args, 1);
 ```
+
+```cpp
+CS_NetType dateTimeType;
+if (CS_NetType::ParseFromName("System.DateTime", dateTimeType)) {
+  auto now = dateTimeType.GetStaticProperty("Now");
+  printf("%s \n", now.ToString().Cstr());
+}
+```
