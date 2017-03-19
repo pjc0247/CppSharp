@@ -1,5 +1,6 @@
 #include "stdafx.h"
 
+#include "NetValue.h"
 #include "CppSharpBridge.h"
 
 #include <msclr/marshal_cppstd.h>
@@ -21,6 +22,7 @@ static msclr::auto_gcroot<ExeContext^> exeContext;
 static std::map < std::string, std::function<CS_NetValue(CS_NetValue*, int)>> functions;
 
 static CS_NetValue ToCppValue(Object ^obj);
+static Object ^ToNetValue(const CS_NetValue &obj);
 
 public ref class CSFunctionBindings {
 public:
@@ -33,17 +35,19 @@ public:
 		auto cppName = msclr::interop::marshal_as<std::string>(name);
 		auto it = functions.find(cppName);
 
-		if (it == functions.end())
+		if (it == functions.end()) {
+			Console::WriteLine("not found function - {0}", name);
 			throw gcnew ArgumentException(name);
+		}
 
 		CS_NetValue *cppArgs = new CS_NetValue[args->Length];
 		for (int i = 0; i < args->Length;i++) {
 			cppArgs[i] = ToCppValue(args[i]);
 		}
 
-		(*it).second(cppArgs, args->Length);
-
-		return nullptr;
+		auto ret = (*it).second(cppArgs, args->Length);
+		 
+		return ToNetValue(ret);
 	}
 
 private:
@@ -63,6 +67,21 @@ void CS_LoadScripts(CS_Script *scripts, int len) {
 		input->ToArray());
 }
 
+static Object ^ToNetValue(const CS_NetValue &obj) {
+	if (obj.type == CS_Void)
+		return nullptr;
+
+	if (obj.type == CS_Integer)
+		return obj._v.i;
+	if (obj.type == CS_Char)
+		return obj._v.c;
+	if (obj.type == CS_Float)
+		return obj._v.f;
+	if (obj.type == CS_Double)
+		return obj._v.d;
+	if (obj.type == CS_Boolean)
+		return obj._v.b;
+}
 static CS_NetValue ToCppValue(Object ^obj) {
 	auto objType = obj->GetType();
 
@@ -88,12 +107,35 @@ static CS_NetValue ToCppValue(Object ^obj) {
 	}
 }
 
-void CS_RegisterFunction(const char *name, CS_NetValue(*func)(CS_NetValue *, int)) {
-	if (functions.find(std::string(name)) != functions.end())
-		printf("already has a function with name(%s), override it.", name);
+void CS_RegisterFunction(
+	const char *name, CS_NetValue(*func)(...),
+	const CS_NetType &returnType,
+	CS_NetType *paramTypes, int paramTypesLen) {
+
+	//if (functions.find(std::string(name)) != functions.end())
+	//	printf("already has a function with name(%s), override it.", name);
+
+	auto paramTypesList = gcnew List<Type^>();
+	for (int i = 0; i < paramTypesLen; i++) {
+		paramTypesList->Add(paramTypes[i].data->type);
+	}
+
+	CSCore::RegisterFunction(
+		gcnew String(name),
+		returnType.data->type,
+		paramTypesList->ToArray());
 
 	functions[std::string(name)] = [func](CS_NetValue *args, int argc) {
-		return func(args, argc);
+		if (argc == 0)
+			return func();
+		else if (argc == 1)
+			return func(args[0]);
+		else if (argc == 2)
+			return func(args[0], args[1]);
+		else if (argc == 3)
+			return func(args[0], args[1], args[2]);
+		else if (argc == 4)
+			return func(args[0], args[1], args[2], args[3]);
 	};
 }
 CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc) {
@@ -103,22 +145,22 @@ CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc) {
 	for (int i = 0; i < argc; i++) {
 		switch (args[i].type) {
 		case CS_Integer:
-			param->Add(args[i].i);
+			param->Add(args[i]._v.i);
 			break;
 		case CS_Char:
-			param->Add(args[i].c);
+			param->Add(args[i]._v.c);
 			break;
 		case CS_String:
-			param->Add(gcnew String(args[i].s));
+			param->Add(gcnew String(args[i]._v.s));
 			break;
 		case CS_Float:
-			param->Add(args[i].f);
+			param->Add(args[i]._v.f);
 			break;
 		case CS_Double:
-			param->Add(args[i].d);
+			param->Add(args[i]._v.d);
 			break;
 		case CS_Boolean:
-			param->Add(args[i].b);
+			param->Add(args[i]._v.b);
 			break;
 		}
 	}

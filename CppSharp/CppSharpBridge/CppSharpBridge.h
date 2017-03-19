@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdio.h>
 #include <stdarg.h>
 
 #if CppSharpExport
@@ -21,13 +22,37 @@ enum CS_NetValueType {
 	CS_Boolean
 };
 
+struct CS_NativeValueData;
+struct CS_NativeTypeData;
+
 struct CS_Script {
 	char *path;
 	char *source;
 };
-struct CS_NetValue {
+class CPPSHARP_API CS_NetType{
+public:
+	CS_NativeTypeData *data;
+
+	static CS_NetType Integer();
+	static CS_NetType String();
+	static CS_NetType Char();
+	static CS_NetType Float();
+	static CS_NetType Double();
+	static CS_NetType Boolean();
+
+	CS_NetType();
+	CS_NetType(CS_NativeTypeData*);
+	CS_NetType(const CS_NetType &other);
+	~CS_NetType();
+
+	CS_NetType &operator=(const CS_NetType &other);
+};
+class CPPSHARP_API CS_NetValue {
+public:
+	CS_NativeValueData *data;
 	CS_NetValueType type;
 	
+	// primitive data
 	union {
 		int i;
 		char c;
@@ -35,23 +60,29 @@ struct CS_NetValue {
 		float f;
 		double d;
 		bool b;
-	};
+	} _v;
 
 	bool needToRelease;
 
-	CPPSHARP_API static CS_NetValue Void();
-	CPPSHARP_API static CS_NetValue Integer(int i);
-	CPPSHARP_API static CS_NetValue Char(char c);
-	CPPSHARP_API static CS_NetValue String(char *s);
-	CPPSHARP_API static CS_NetValue Float(float f);
-	CPPSHARP_API static CS_NetValue Double(double d);
-	CPPSHARP_API static CS_NetValue Boolean(bool d);
+	static CS_NetValue Void();
+	static CS_NetValue Integer(int i);
+	static CS_NetValue Char(char c);
+	static CS_NetValue String(char *s);
+	static CS_NetValue Float(float f);
+	static CS_NetValue Double(double d);
+	static CS_NetValue Boolean(bool d);
 
-	CPPSHARP_API CS_NetValue();
-	CPPSHARP_API ~CS_NetValue();
+	CS_NetValue();
+	CS_NetValue(const CS_NetValue &other);
+	~CS_NetValue();
+
+	const CS_NetType &GetType();
 };
 
 CPPSHARP_API void CS_LoadScripts(CS_Script *scripts, int len);
 
-CPPSHARP_API void CS_RegisterFunction(const char *name, CS_NetValue (*func)(CS_NetValue *,int));
+CPPSHARP_API void CS_RegisterFunction(
+	const char *name, CS_NetValue (*func)(...),
+	const CS_NetType &returnType,
+	CS_NetType *paramTypes, int paramTypesLen);
 CPPSHARP_API CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc);

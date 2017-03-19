@@ -50,7 +50,7 @@ namespace CppSharp
         }
         public void Dispose()
         {
-            AppDomain.Unload(ad);
+            //AppDomain.Unload(ad);
             ad = null;
             assembly = null;
             rawAssembly = null;

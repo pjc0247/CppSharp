@@ -13,8 +13,7 @@ namespace CppSharp
         public string message { get; private set; }
         public Diagnostic diagnostic { get; private set; }
 
-        public CompileException(
-        string code, string message, Diagnostic diagnostic)
+        public CompileException(string code, string message, Diagnostic diagnostic)
         {
             this.code = code;
             this.message = message;
