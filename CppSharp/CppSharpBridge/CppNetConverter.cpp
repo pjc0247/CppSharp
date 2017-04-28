@@ -33,8 +33,6 @@ CS_NetValue ToCppValue(Object ^obj) {
 		return ToCppValue(obj, Object::typeid);
 }
 CS_NetValue ToCppValue(Object ^obj, Type ^type) {
-	Console::WriteLine("ToCppValue : " + obj + " / " + type);
-
 	if (type == Void::typeid)
 		return CS_NetValue::Void();
 
@@ -63,4 +61,39 @@ CS_NetValue ToCppValue(Object ^obj, Type ^type) {
 	value.type = CS_Object;
 	value.valueData = new CS_NativeValueData(obj);
 	return value;
+}
+
+bool ToInt(const CS_NetValue &obj, int &v) {
+    if (obj.type == CS_Integer)
+        v =  obj._v.i;
+    if (obj.type == CS_Float)
+        v = obj._v.f;
+    if (obj.type == CS_Double)
+        v = obj._v.d;
+    if (obj.type == CS_Char)
+        v = obj._v.c;
+
+    if (obj.type == CS_Boolean || obj.type == CS_String)
+        return false;
+    // TOODO
+    if (obj.type == CS_Object)
+        return false;
+
+    return true;
+}
+bool ToFloat(const CS_NetValue &obj, float &v) {
+    if (obj.type == CS_Integer)
+        v = obj._v.i;
+    if (obj.type == CS_Float)
+        v = obj._v.f;
+    if (obj.type == CS_Double)
+        v = obj._v.d;
+
+    if (obj.type == CS_Boolean || obj.type == CS_String || 
+        obj.type == CS_Char)
+        return false;
+    if (obj.type == CS_Object)
+        return false;
+
+    return true;
 }

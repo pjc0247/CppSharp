@@ -9,14 +9,58 @@ using namespace System;
 using namespace System::Reflection;
 using namespace System::Runtime::InteropServices;
 
+CS_NetValue CS_NetValue::NullObject() {
+    CS_NetValue value;
+    value.type = CS_Object;
+    value.valueData = new CS_NativeValueData(nullptr, System::Object::typeid);
+    return value;
+}
+CS_NetValue CS_NetValue::Void() {
+    CS_NetValue value;
+    value.type = CS_Void;
+    return value;
+}
+CS_NetString CS_NetValue::String(char *s) {
+    CS_NetString value;
+    value.type = CS_String;
+
+    if (s == nullptr) {
+        value._v.s = nullptr;
+        value.valueData = new CS_NativeValueData(gcnew System::String((char*)nullptr));
+    }
+    else {
+        value._v.s = new char[strlen(s) + 1];
+        memcpy(value._v.s, s, sizeof(char) * (strlen(s) + 1));
+        value.valueData = new CS_NativeValueData(gcnew System::String(s));
+    }
+
+    return value;
+}
+
+#define IMPL_CTOR(NetType, CppType, id) \
+	CS_NetValue CS_NetValue::NetType(CppType id) { \
+		CS_NetValue value; \
+		value.type = CS_##NetType; \
+		value.valueData = new CS_NativeValueData(id); \
+		value._v.##id = id; \
+		return value; \
+	}
+IMPL_CTOR(Integer, int, i);
+IMPL_CTOR(Char, char, c);
+IMPL_CTOR(Float, float, f);
+IMPL_CTOR(Double, double, d);
+IMPL_CTOR(Boolean, bool, b);
+
 // NET_VALUE
 CS_NetValue::CS_NetValue() :
+    persistent(false),
 	valueData(nullptr) {
 
 	_v.s = 0;
 	needToRelease = false;
 }
 CS_NetValue::CS_NetValue(const CS_NetValue &other) :
+    persistent(false),
 	type(other.type),
 	valueData(nullptr), _v(other._v){
 
@@ -29,6 +73,7 @@ CS_NetValue::CS_NetValue(const CS_NetValue &other) :
 	}
 }
 CS_NetValue::CS_NetValue(CS_NetValue &&other) :
+    persistent(false),
 	type(other.type),
 	valueData(other.valueData), _v(other._v) {
 
@@ -39,6 +84,8 @@ CS_NetValue::CS_NetValue(CS_NetValue &&other) :
 	other.valueData = nullptr;
 }
 CS_NetValue::~CS_NetValue() {
+    if (persistent) return;
+
 	if (valueData != nullptr)
 		delete valueData;
 
@@ -49,12 +96,17 @@ CS_NetValue::~CS_NetValue() {
 	}
 }
 
+bool CS_NetValue::operator==(const CS_NetValue &other) const {
+    return Equals(other);
+}
+bool CS_NetValue::operator!=(const CS_NetValue &other) const {
+    return !Equals(other);
+}
 CS_NetValue &CS_NetValue::operator=(const CS_NetValue &other) {
 	if (&other == this)
 		return *this;
 
-	type = other.type;
-	_v = other._v;
+    Assign(other);
 
 	if (other.valueData == nullptr)
 		valueData = nullptr;
@@ -72,8 +124,7 @@ CS_NetValue &CS_NetValue::operator=(CS_NetValue &&other) {
 	if (&other == this)
 		return *this;
 
-	type = other.type;
-	_v = other._v;
+    Assign(other);
 
 	if (other.valueData == nullptr) {
 		valueData = nullptr;
@@ -91,55 +142,77 @@ CS_NetValue &CS_NetValue::operator=(CS_NetValue &&other) {
 	return *this;
 }
 
-CS_NetValue CS_NetValue::NullObject() {
-	CS_NetValue value;
-	value.type = CS_Object;
-	value.valueData = nullptr;
-	return value;
+bool CS_NetValue::Equals(const CS_NetValue &other) const {
+    // primitive type
+    if (type != CS_Object) {
+        if (other.type != CS_Object) {
+            switch (type) {
+            case CS_Integer: {
+                int i;
+                if (ToInt(other, i)) return _v.i == i;
+                return false;
+            }
+            case CS_Char: return _v.c == other._v.c;
+            case CS_Float: {
+                float f;
+                if (ToFloat(other, f)) return _v.f == f;
+                return false;
+            }
+            case CS_Double: return _v.d == other._v.d;
+            case CS_Boolean: return _v.b == other._v.b;
+            }
+        }
+    }
+
+    // string
+    if (type == CS_String) {
+        if (other.type != CS_String &&
+            other.type != CS_Object)
+            return false;
+
+        if (_v.s == nullptr) {
+            // string(null) == null
+            if (other.GetType() == CS_NetType::Object() &&
+                VALUE_AS(other, System::Object^) == nullptr) {
+                return true;
+            }
+            // string(null) == string(null)
+            if (other._v.s == nullptr) return true;
+            else return false;
+        }
+        else if (other.type == CS_Object)
+            return false;
+
+        return strcmp(_v.s, other._v.s) == 0;
+    }
+
+    if (type == CS_Object) {
+        // case that both values are nullptr
+        if (VALUE_AS(*this, System::Object^) == nullptr &&
+            VALUE_AS(other, System::Object^) == nullptr)
+            return true;
+
+        if (VALUE_AS(*this, System::Object^) == nullptr &&
+            VALUE_AS(other, System::Object^) != nullptr)
+            return false;
+        if (VALUE_AS(*this, System::Object^) != nullptr &&
+            VALUE_AS(other, System::Object^) == nullptr)
+            return false;
+        Console::WriteLine(valueData->obj->GetType() + " : " + other.valueData->obj->GetType());
+
+        return valueData->obj->Equals(other.valueData->obj);
+    }
+
+    // ??? (void)
+    return false;
 }
-CS_NetValue CS_NetValue::Void() {
-	CS_NetValue value;
-	value.type = CS_Void;
-	return value;
-}
-CS_NetValue CS_NetValue::String(char *s) {
-	CS_NetValue value;
-	value.type = CS_String;
-
-	if (s == nullptr) {
-		value._v.s = nullptr;
-		value.valueData = new CS_NativeValueData(String::typeid);
-	}
-	else {
-		value._v.s = new char[strlen(s) + 1];
-		memcpy(value._v.s, s, sizeof(char) * (strlen(s) + 1));
-		value.valueData = new CS_NativeValueData(gcnew System::String(s));
-	}
-
-	return value;
-}
-
-#define IMPL_CTOR(NetType, CppType, id) \
-	CS_NetValue CS_NetValue::NetType(CppType id) { \
-		CS_NetValue value; \
-		value.type = CS_##NetType; \
-		value.valueData = new CS_NativeValueData(id); \
-		value._v.##id = id; \
-		return value; \
-	}
-IMPL_CTOR(Integer, int, i);
-IMPL_CTOR(Char, char, c);
-IMPL_CTOR(Float, float, f);
-IMPL_CTOR(Double, double, d);
-IMPL_CTOR(Boolean, bool, b);
-
-CS_NetValue CS_NetValue::ToString() {
+CS_NetValue CS_NetValue::ToString() const {
 	if (valueData == nullptr || (Object^)valueData->obj == nullptr)
 		return CS_NetValue::String("nullptr");
 
 	return ToCppValue(valueData->obj->ToString(), String::typeid);
 }
-const CS_NetType &CS_NetValue::GetType() {
+const CS_NetType &CS_NetValue::GetType() const {
 	switch (type) {
 	case CS_Integer:
 		return CS_NetType::Integer();
@@ -221,4 +294,11 @@ bool CS_NetValue::SetProperty(const char *name, const CS_NetValue &value, bool n
 		return false;
 
 	prop->SetValue(valueData->obj, ToNetValue(value));
+}
+
+void CS_NetValue::Assign(const CS_NetValue &other) {
+    persistent = other.persistent;
+    type = other.type;
+    _v = other._v;
+    valueData = other.valueData;
 }

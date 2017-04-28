@@ -21,6 +21,7 @@ using namespace System::Collections::Generic;
 using namespace System::Runtime::InteropServices;
 using namespace CppSharp;
 
+void OnUnhandledException(System::Object ^sender, System::UnhandledExceptionEventArgs ^e);
 static msclr::gcroot<ExeContext^> exeContext;
 
 static msclr::gcroot<List<Assembly^>^> references;
@@ -38,7 +39,7 @@ public:
 		auto it = functions.find(cppName);
 
 		if (it == functions.end()) {
-			Console::WriteLine("not found function - {0}", name);
+			Console::WriteLine("not found - {0}", name);
 			throw gcnew ArgumentException(name);
 		}
 
@@ -59,32 +60,28 @@ void CS_Init() {
 	references = gcnew List<Assembly^>();
 
 	references->Add(Assembly::GetCallingAssembly());
+
+	AppDomain::CurrentDomain->UnhandledException += gcnew System::UnhandledExceptionEventHandler(&OnUnhandledException);
 }
 bool CS_LoadReference(const char *path) {
-	try {
-		auto assembly = Assembly::LoadFile(gcnew String(path));
+    auto assembly = Assembly::LoadFile(gcnew String(path));
 
-		references->Add(assembly);
-	}
-	catch (Exception ^e) {
-		Console::WriteLine(e);
-		return false;
-	}
+    references->Add(assembly);
 
 	return true;
 }
 void CS_LoadScripts(CS_Script *scripts, int len) {
-	auto input = gcnew List<Tuple<String^, String^>^>();
+    auto input = gcnew List<Tuple<String^, String^>^>();
 
-	for (int i = 0; i < len; i++) {
-		input->Add(gcnew Tuple<String^, String^>(
-			gcnew String(scripts[i].path),
-			gcnew String(scripts[i].source)));
-	}
+    for (int i = 0; i < len; i++) {
+        input->Add(gcnew Tuple<String^, String^>(
+            gcnew String(scripts[i].path),
+            gcnew String(scripts[i].source)));
+    }
 
-	exeContext = CSCore::LoadScripts(
-		references->ToArray(),
-		input->ToArray());
+    exeContext = CSCore::LoadScripts(
+        references->ToArray(),
+        input->ToArray());
 }
 
 void CS_RegisterFunction(
@@ -95,28 +92,28 @@ void CS_RegisterFunction(
 	//if (functions.find(std::string(name)) != functions.end())
 	//	printf("already has a function with name(%s), override it.", name);
 
-	auto paramTypesList = gcnew List<Type^>();
-	for (int i = 0; i < paramTypesLen; i++) {
-		paramTypesList->Add(paramTypes[i].typeData->type);
-	}
+    auto paramTypesList = gcnew List<Type^>();
+    for (int i = 0; i < paramTypesLen; i++) {
+        paramTypesList->Add(paramTypes[i].typeData->type);
+    }
 
-	CSCore::RegisterFunction(
-		gcnew String(name),
-		returnType.typeData->type,
-		paramTypesList->ToArray());
+    CSCore::RegisterFunction(
+        gcnew String(name),
+        returnType.typeData->type,
+        paramTypesList->ToArray());
 
-	functions[std::string(name)] = [func](CS_NetValue *args, int argc) {
-		if (argc == 0)
-			return func();
-		else if (argc == 1)
-			return func(args[0]);
-		else if (argc == 2)
-			return func(args[0], args[1]);
-		else if (argc == 3)
-			return func(args[0], args[1], args[2]);
-		else if (argc == 4)
-			return func(args[0], args[1], args[2], args[3]);
-	};
+    functions[std::string(name)] = [func](CS_NetValue *args, int argc) {
+        if (argc == 0)
+            return func();
+        else if (argc == 1)
+            return func(args[0]);
+        else if (argc == 2)
+            return func(args[0], args[1]);
+        else if (argc == 3)
+            return func(args[0], args[1], args[2]);
+        else if (argc == 4)
+            return func(args[0], args[1], args[2], args[3]);
+    };
 }
 CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc) {
 	auto proxy = exeContext->GetProxy();
@@ -148,4 +145,7 @@ CS_NetValue CS_Invoke(const char *name, CS_NetValue *args, int argc) {
 	auto ret = proxy->Invoke(gcnew String(name), param->ToArray());
 
 	return ToCppValue(ret);
+}
+void OnUnhandledException(System::Object ^sender, System::UnhandledExceptionEventArgs ^e)
+{
 }
